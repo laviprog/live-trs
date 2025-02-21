@@ -1,4 +1,6 @@
 import gc
+
+import numpy as np
 import torch
 import whisperx
 
@@ -16,7 +18,6 @@ class SRTModel:
             device: str = 'cuda',
             compute_type: str = 'float16',
             download_root: str = 'models',
-            hf_auth_token: str = None
     ):
 
         """
@@ -25,7 +26,6 @@ class SRTModel:
         :param device: The device to run the model on (e.g., 'cuda' or 'cpu').
         :param compute_type: The type of computation to use (e.g., 'float16' or 'float32').
         :param download_root: The root directory to download the models to.
-        :param hf_auth_token: The Hugging Face authentication token for accessing models.
         """
 
         self._cache = {}
@@ -33,10 +33,14 @@ class SRTModel:
         self.device = device
         self.compute_type = compute_type
         self.download_root = download_root
-        self.hf_auth_token = hf_auth_token
+        self._load_model()
 
-        logger.info("SRTModel initialized with device=%s, compute_type=%s, download_root=%s",
-                     device, compute_type, download_root)
+        logger.info(
+            "SRTModel initialized with device=%s, compute_type=%s, download_root=%s",
+            device,
+            compute_type,
+            download_root
+        )
 
     def _load_model(self):
 
@@ -68,16 +72,15 @@ class SRTModel:
 
     def transcribe(
             self,
-            audio_file: str,
+            audio: np.ndarray,
             batch_size: int = 4,
             chunk_size: int = 10,
             language: str = None,
     ):
-
         """
         Transcribe an audio file and optionally perform diarization.
 
-        :param audio_file: The path to the audio file.
+        :param audio: A NumPy array containing the audio waveform, in float32 dtype.
         :param batch_size: The batch size for transcription.
         :param chunk_size: The chunk size for transcription.
         :param language: The language of the audio.
@@ -85,21 +88,10 @@ class SRTModel:
         :return: The transcribed audio with speakers assigned.
         """
 
-        try:
-            logger.info("Loading audio file %s...", audio_file)
-
-            audio = whisperx.load_audio(audio_file)
-
-            logger.info("Loaded audio file %s", audio_file)
-
-        except RuntimeError as e:
-            logger.error("Failed to load audio file %s: %s", audio_file, e)
-            raise e
-
         model = self._load_model()
 
         try:
-            logger.info("Transcribing audio file %s...", audio_file)
+            logger.info("Transcribing audio...")
 
             result = model.transcribe(
                 audio=audio,
@@ -108,10 +100,10 @@ class SRTModel:
                 language=language,
             )
 
-            logger.info("Transcribed audio file %s", audio_file)
+            logger.info("Transcribed audio file")
 
         except Exception as e:
-            logger.error("Failed to transcribe audio file %s: %s", audio_file, e)
+            logger.error("Failed to transcribe audio file: %s", e)
             raise e
 
         return result['segments']
